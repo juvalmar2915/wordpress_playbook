@@ -34,8 +34,8 @@ jobs:
 
       - name: Install Vagrant
         run: |
-          sudo apt-get update
-          sudo apt-get install -y vagrant
+          wget https://releases.hashicorp.com/vagrant/2.4.1/vagrant_2.4.1-1_amd64.deb -O vagrant.deb
+          sudo dpkg -i vagrant.deb || sudo apt-get install -f -y
       
       - name: Run Molecule tests
         working-directory: roles/webserver
