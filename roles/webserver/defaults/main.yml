@@ -1,0 +1,27 @@
+# roles/webserver/defaults/main.yml
+
+# General
+wordpress_install_dir: /var/www/wordpress
+wordpress_db_name: wordpress_db
+wordpress_db_user: wordpress_user
+wordpress_db_password: Micontrasenia123-
+wordpress_site_url: http://127.0.0.1
+wordpress_version: "6.5"
+wordpress_download_url: "https://wordpress.org/wordpress-{{ wordpress_version }}.zip"
+
+# Web Server
+webserver_type: apache
+php_version: "7.4"
+php_enable_php_fpm: true
+php_packages:
+  - php-cli
+  - php-mysql
+  - php-curl
+  - php-mbstring
+
+apache_vhost_template: apache.conf.j2
+apache_vhost_filename: "{{ wordpress_site_url | regex_replace('^(http|https)://', '') }}.conf"
+apache_listen_port: 80
+
+# Paths
+php_fpm_sock_path: "/run/php/php{{ php_version }}-fpm.sock"

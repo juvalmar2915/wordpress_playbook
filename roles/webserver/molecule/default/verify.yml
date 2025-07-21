@@ -1,0 +1,62 @@
+# molecule/default/verify.yml
+---
+- name: Verify webserver role
+  hosts: all
+  gather_facts: false
+  tasks:
+    - name: Check if Apache is installed and running
+      ansible.builtin.service:
+        name: "{{ 'apache2' if ansible_os_family == 'Debian' else 'httpd' }}"
+        state: started
+        enabled: true
+      check_mode: true # Don't change state, just check
+
+    - name: Check if PHP-FPM service is running (Debian/Ubuntu)
+      ansible.builtin.service:
+        name: "php{{ php_version }}-fpm"
+        state: started
+        enabled: true
+      when: ansible_os_family == 'Debian'
+      check_mode: true
+
+    - name: Check if WordPress directory exists
+      ansible.builtin.stat:
+        path: "{{ wordpress_install_dir }}"
+      register: wordpress_dir_stat
+      failed_when: not wordpress_dir_stat.stat.exists
+
+    - name: Check for wp-config.php and its contents
+      ansible.builtin.command: cat {{ wordpress_install_dir }}/wp-config.php
+      register: wp_config_content
+      changed_when: false
+
+    - name: Verify DB_NAME in wp-config.php
+      ansible.builtin.assert:
+        that: "'DB_NAME', '{{ wordpress_db_name }}'" in wp_config_content.stdout
+        fail_msg: "DB_NAME is not correctly configured in wp-config.php"
+
+    - name: Verify DB_USER in wp-config.php
+      ansible.builtin.assert:
+        that: "'DB_USER', '{{ wordpress_db_user }}'" in wp_config_content.stdout
+        fail_msg: "DB_USER is not correctly configured in wp-config.php"
+
+    - name: Verify Apache vhost file exists (Debian/Ubuntu)
+      ansible.builtin.stat:
+        path: "/etc/apache2/sites-available/{{ apache_vhost_filename }}"
+      when: ansible_os_family == 'Debian'
+      register: vhost_debian_stat
+      failed_when: not vhost_debian_stat.stat.exists
+
+    - name: Verify Apache vhost file exists (RedHat)
+      ansible.builtin.stat:
+        path: "/etc/httpd/conf.d/{{ apache_vhost_filename }}"
+      when: ansible_os_family == 'RedHat'
+      register: vhost_redhat_stat
+      failed_when: not vhost_redhat_stat.stat.exists
+
+    - name: Verify Apache vhost is enabled (Debian/Ubuntu)
+      ansible.builtin.command: a2query -s {{ apache_vhost_filename | regex_replace('\\.conf$', '') }}
+      when: ansible_os_family == 'Debian'
+      register: vhost_enabled_debian
+      failed_when: "'enabled' not in vhost_enabled_debian.stdout"
+      changed_when: false

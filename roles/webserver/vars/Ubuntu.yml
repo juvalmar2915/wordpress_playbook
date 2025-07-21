@@ -1,0 +1,5 @@
+---
+# vars for Debian-based systems (Ubuntu)
+web_user: www-data
+web_group: www-data
+apache_default_vhost_to_disable: 000-default.conf

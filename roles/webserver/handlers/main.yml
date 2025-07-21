@@ -1,0 +1,17 @@
+# roles/webserver/handlers/main.yml
+- name: Restart Apache
+  ansible.builtin.service:
+    # Use 'httpd' for RedHat/Rocky and 'apache2' for Debian/Ubuntu
+    name: "{{ 'httpd' if ansible_os_family == 'RedHat' else 'apache2' }}"
+    state: restarted
+  listen: "restart webserver"
+  when: webserver_type == 'apache'
+
+- name: Restart PHP-FPM
+  ansible.builtin.service:
+    # Use 'php-fpm' for RedHat/Rocky and 'php{{ php_version }}-fpm' for Debian/Ubuntu
+    name: "{{ 'php-fpm' if ansible_os_family == 'RedHat' else ('php' + php_version + '-fpm') }}"
+    state: restarted
+  listen: "restart php-fpm"
+  # Apply this handler for both Debian and RedHat families if PHP-FPM is enabled
+  when: php_enable_php_fpm

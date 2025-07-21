@@ -1,0 +1,21 @@
+---
+- name: Destroy
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  tasks:
+    - name: Destroy Vagrant VMs
+      ansible.builtin.command:
+        cmd: vagrant destroy --force
+      args:
+        chdir: "{{ molecule_ephemeral_directory }}"
+      register: destroy_result
+      changed_when: "'destroyed' in destroy_result.stdout or 'not created' in destroy_result.stdout"
+      failed_when: false
+
+    - name: Cleanup instance config
+      delegate_to: localhost
+      ansible.builtin.file:
+        path: "{{ molecule_instance_config }}"
+        state: absent
+

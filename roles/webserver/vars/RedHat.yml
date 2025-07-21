@@ -1,0 +1,8 @@
+---
+# vars for RedHat-based systems (CentOS)
+web_user: apache
+web_group: apache
+php_fpm_service_name: php-fpm
+apache_vhost_config_path: "/etc/httpd/conf.d"
+apache_vhost_enabled_path: "/etc/httpd/conf.d"
+apache_default_vhost_to_disable: "" 

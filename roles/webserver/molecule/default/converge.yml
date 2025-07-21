@@ -1,0 +1,124 @@
+---
+- name: Converge
+  hosts: all
+  become: true # Ejecutar tareas como root
+  gather_facts: true
+
+  vars:
+    # Variables de base de datos para el rol geerlingguy.mysql
+    mysql_root_password: "Micontrasenia123-"
+
+    mysql_root_login_password: "{{ mysql_root_password }}"
+    mysql_databases:
+      - name: "{{ wordpress_db_name }}"
+    mysql_users:
+      - name: "{{ wordpress_db_user }}"
+        host: "127.0.0.1" # O 'localhost'
+        password: "{{ wordpress_db_password }}"
+        priv: "{{ wordpress_db_name }}.*:ALL"
+    mysql_daemon: "{{ 'mariadb' if ansible_os_family == 'RedHat' else 'mysql' }}"
+
+  pre_tasks:
+    - name: Detectar distribución (leer /etc/os-release)
+      raw: cat /etc/os-release || cat /etc/redhat-release
+      register: os_release
+      changed_when: false
+
+    - name: Ensure Python is installed (for ansible)
+      ansible.builtin.raw: apt update && apt install -y python3 python3-pip || dnf install -y python3 python3-pip || yum install -y python3 python3-pip
+      args:
+        creates: /usr/bin/python3
+      changed_when: false
+      failed_when: false
+      when: ansible_os_family == 'Debian'
+
+    - name: Stop MySQL/MariaDB service if running
+      ansible.builtin.service:
+        name: "{{ mysql_daemon }}"
+        state: stopped
+      when: ansible_os_family == 'Debian' or ansible_os_family == 'RedHat'
+      ignore_errors: true # Continua si el servicio no se encuentra o esta corriendo
+
+    - name: Remove MySQL/MariaDB packages (Debian/Ubuntu)
+      ansible.builtin.apt:
+        name:
+          - mysql-server
+          - mysql-client
+          - mysql-common
+          - mariadb-server
+          - mariadb-client
+          - mariadb-common
+        state: absent
+        purge: true # Saca archivos de configuration tambien
+      when: ansible_os_family == 'Debian'
+      ignore_errors: true
+
+    - name: Remove MySQL/MariaDB packages (RedHat)
+      ansible.builtin.dnf:
+        name:
+          - mysql-server
+          - mysql
+          - mariadb-server
+          - mariadb
+        state: absent
+        autoremove: true
+      when: ansible_os_family == 'RedHat'
+      ignore_errors: true
+
+    - name: Remove MySQL/MariaDB data directory
+      ansible.builtin.file:
+        path: /var/lib/mysql
+        state: absent
+      when: ansible_os_family == 'Debian' or ansible_os_family == 'RedHat'
+      ignore_errors: true
+
+    - name: Remove MySQL/MariaDB configuration directories (Debian/Ubuntu)
+      ansible.builtin.file:
+        path: "{{ item }}"
+        state: absent
+      loop:
+        - /etc/mysql
+        - /etc/mysql-community
+        - /etc/mysql/conf.d
+        - /etc/mysql/mysql.conf.d
+      when: ansible_os_family == 'Debian'
+      ignore_errors: true
+
+    - name: Remove MySQL/MariaDB configuration directories (RedHat)
+      ansible.builtin.file:
+        path: "{{ item }}"
+        state: absent
+      loop:
+        - /etc/my.cnf
+        - /etc/my.cnf.d
+      when: ansible_os_family == 'RedHat'
+      ignore_errors: true
+
+    
+      
+  roles:
+    - role: geerlingguy.mysql # Rol de Ansible Galaxy para la base de datos
+    - role: geerlingguy.php # Rol de ansible Galaxy para PHP
+      vars:
+        # Override default PHP packages for RedHat/Rocky Linux
+        # You might need to adjust this list based on your specific PHP version or needs.
+        # Common ones for WordPress on Rocky Linux 9 are php-cli, php-fpm, php-json, php-gd, php-mbstring, php-xml, php-mysqli
+        php_packages:
+          - php
+          - php-cli
+          - php-fpm
+          - php-json
+          - php-gd
+          - php-mbstring
+          - php-xml
+          - php-mysqli  # <--- CHANGED FROM php-mysql
+          - php-zip
+          - php-opcache
+          - php-curl
+          - php-bcmath
+          - php-pdo
+          - php-intl
+      when: ansible_os_family == 'RedHat' 
+    - role: geerlingguy.php # Default packages for Debian if applicable
+      when: ansible_os_family == 'Debian'
+    - role: webserver        # Nuestro rol personalizado para el servidor web
