@@ -30,7 +30,7 @@ jobs:
           python -m pip install --upgrade pip
           pip install ansible molecule python-vagrant
           ansible-galaxy collection install community.general
-          ansible-galaxy install geerlingguy.mysql,geerlingguy.php
+          ansible-galaxy install geerlingguy.mysql geerlingguy.php
 
       - name: Run Molecule tests
         run: |
