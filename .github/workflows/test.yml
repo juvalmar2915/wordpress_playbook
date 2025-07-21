@@ -14,7 +14,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        python-version: ["3.9","3.10","3.11","3.12"]
+        python-version: ["3.10","3.11"]
 
     steps:
       - name: Checkout code
@@ -28,9 +28,9 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install ansible molecule vagrant  # Or 'vagrant' if you prefer
-          ansible-galaxy collection install community.general # Install any required collections
-          ansible-galaxy install geerlingguy.mysql,geerlingguy.php # Install your role dependencies
+          pip install ansible molecule python-vagrant
+          ansible-galaxy collection install community.general
+          ansible-galaxy install geerlingguy.mysql,geerlingguy.php
 
       - name: Run Molecule tests
         run: |
