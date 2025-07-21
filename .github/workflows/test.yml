@@ -33,6 +33,6 @@ jobs:
           ansible-galaxy install geerlingguy.mysql geerlingguy.php
 
       - name: Run Molecule tests
+        working-directory: roles/webserver
         run: |
           molecule test
-        working-directory: ./
