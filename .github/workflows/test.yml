@@ -28,10 +28,15 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install ansible molecule python-vagrant
+          pip install ansible molecule
           ansible-galaxy collection install community.general
           ansible-galaxy install geerlingguy.mysql geerlingguy.php
 
+      - name: Install Vagrant
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y vagrant
+      
       - name: Run Molecule tests
         working-directory: roles/webserver
         run: |
