@@ -17,6 +17,13 @@
   ansible.builtin.apt:
     update_cache: true
   when: ansible_os_family == 'Debian'
+  changed_when: false
+
+- name: Remove curl-minimal if present (RedHat only)
+  ansible.builtin.package:
+    name: curl-minimal
+    state: absent
+  when: ansible_os_family == "RedHat"
 
 - name: Install common packages
   ansible.builtin.package:
@@ -92,27 +99,21 @@
     url: "{{ wordpress_download_url }}"
     dest: "/tmp/wordpress-{{ wordpress_version }}.zip"
     mode: '0644'
+    force: false
 
 - name: Asegurar que el directorio temporal de extracción de WordPress exista
   ansible.builtin.file:
     path: "/tmp/extracted_wordpress"
     state: directory
     mode: '0755' # Permisos estandares para un directory
+  changed_when: false
 
 - name: Descomprimir WordPress en el directorio de instalación temporalmente
   ansible.builtin.unarchive:
     src: "/tmp/wordpress-{{ wordpress_version }}.zip"
-    dest: "/tmp/extracted_wordpress" 
-    remote_src: yes
-    creates: "/tmp/extracted_wordpress/wordpress/index.php" 
-
-- name: Asegurar que el directorio final de WordPress exista
-  ansible.builtin.file:
-    path: "{{ wordpress_install_dir }}"
-    state: directory
-    owner: "{{ web_user }}"
-    group: "{{ web_group }}"
-    mode: '0755'
+    dest: "/tmp/extracted_wordpress"
+    remote_src: true
+    creates: "/tmp/extracted_wordpress/wordpress/index.php"
 
 # 2. Copiar los archivos de WordPress desde el temp a la instalación final
 #    Esta tarea DEBE asegurar que wp-config-sample.php esté en wordpress_install_dir
@@ -123,14 +124,15 @@
     owner: "{{ web_user }}"
     group: "{{ web_group }}"
     mode: '0775'
-    remote_src: yes
-    force: yes # Sobrescribe archivos existentes si son viejos o diferentes.
+    remote_src: true
+    force: true # Sobrescribe archivos existentes si son viejos o diferentes.
 
 # 3. Limpiar el directorio temporal de extracción (una vez que los archivos se hayan movido)
 - name: Limpiar el directorio temporal de extracción
   ansible.builtin.file:
     path: "/tmp/extracted_wordpress"
     state: absent
+  when: not ansible_check_mode
 
 # 4. Limpiar el archivo ZIP de WordPress descargado
 - name: Limpiar el archivo ZIP de WordPress descargado
@@ -153,8 +155,8 @@
     group: "{{ web_group }}"
     mode: '0644'
   when: not wp_config_exists_check.stat.exists # Solo copia si no exite
-  notify: "restart webserver" # Buena practica resetear si no existe
-  
+  notify: "restart webserver"
+
 - name: Configure wp-config.php
   ansible.builtin.replace:
     path: "{{ wordpress_install_dir }}/wp-config.php"
@@ -175,16 +177,22 @@
   # solo obtiene salts si wp-config.php existe
   when: wp_config_exists_check.stat.exists and "'put your unique phrase here' in lookup('file', wordpress_install_dir + '/wp-config.php')"
 
-
 - name: Replace WordPress salts in wp-config.php
   ansible.builtin.replace:
     path: "{{ wordpress_install_dir }}/wp-config.php"
-    regexp: "(?m)^\\s*define\\(\\s*'AUTH_KEY'[^\\n]*\\n^\\s*define\\(\\s*'SECURE_AUTH_KEY'[^\\n]*\\n^\\s*define\\(\\s*'LOGGED_IN_KEY'[^\\n]*\\n^\\s*define\\(\\s*'NONCE_KEY'[^\\n]*\\n^\\s*define\\(\\s*'AUTH_SALT'[^\\n]*\\n^\\s*define\\(\\s*'SECURE_AUTH_SALT'[^\\n]*\\n^\\s*define\\(\\s*'LOGGED_IN_SALT'[^\\n]*\\n^\\s*define\\(\\s*'NONCE_SALT'[^\\n]*$"
+    regexp: >-
+      (?m)^\\s*define\\(\\s*'AUTH_KEY'[^\\n]*\\n
+      ^\\s*define\\(\\s*'SECURE_AUTH_KEY'[^\\n]*\\n
+      ^\\s*define\\(\\s*'LOGGED_IN_KEY'[^\\n]*\\n
+      ^\\s*define\\(\\s*'NONCE_KEY'[^\\n]*\\n
+      ^\\s*define\\(\\s*'AUTH_SALT'[^\\n]*\\n
+      ^\\s*define\\(\\s*'SECURE_AUTH_SALT'[^\\n]*\\n
+      ^\\s*define\\(\\s*'LOGGED_IN_SALT'[^\\n]*\\n
+      ^\\s*define\\(\\s*'NONCE_SALT'[^\\n]*\\n
     replace: "{{ wordpress_salts.content }}"
   # Esta debe correr si 'Get WordPress salts' corre, ya que wp-config.php existe
-  when: wordpress_salts.changed is defined and wordpress_salts.changed 
+  when: wordpress_salts.changed is defined and wordpress_salts.changed
   notify: "restart webserver"
-
 
 - name: Configure Apache vhost
   ansible.builtin.template:
@@ -222,7 +230,7 @@
   ansible.builtin.command: a2dissite 000-default.conf
   when: webserver_type == 'apache' and ansible_os_family == 'Debian'
   changed_when: false
-  notify: "restart webserver" 
+  notify: "restart webserver"
 
 - name: Enable Apache rewrite module
   ansible.builtin.command: a2enmod rewrite
@@ -230,18 +238,49 @@
   changed_when: false
   notify: "restart webserver"
 
-- name: Ensure web server service is running and enabled
-  ansible.builtin.service:
-    name: "{{ 'apache2' if webserver_type == 'apache' and ansible_os_family == 'Debian' else ('httpd' if webserver_type == 'apache' and ansible_os_family == 'RedHat') }}"
-    state: started
-    enabled: true
+- name: Set web server service name
+  set_fact:
+    service_name: >-
+      {{ 'apache2' if webserver_type == 'apache' and ansible_os_family == 'Debian'
+      else 'httpd' if webserver_type == 'apache' and ansible_os_family == 'RedHat'
+      else 'nginx' }}
+
+#- name: Ensure web server service is running and enabled
+#  ansible.builtin.service:
+#    name: "{{ service_name }}"
+#    state: started
+#    enabled: true
+
+- name: Start Apache manually in Docker (Rocky)
+  ansible.builtin.shell: /usr/sbin/httpd -D FOREGROUND &
+  when: ansible_os_family == 'RedHat' and webserver_type == 'apache'
+
+- name: Ensure web server process is running
+  ansible.builtin.command: pgrep "{{ service_name }}"
+  register: service_check
+  failed_when: service_check.rc != 0
+  changed_when: false
+
+- name: Start Apache manually on Docker (Rocky)
+  ansible.builtin.command: httpd
+  when: ansible_os_family == 'RedHat' and webserver_type == 'apache'
+  async: 0
+  poll: 0
 
 - name: Restaurar contextos SELinux para los archivos de WordPress
   ansible.builtin.command: "restorecon -Rv {{ wordpress_install_dir }}"
   # La opción -R es recursiva, -v muestra lo que cambia.
   # Es buena práctica ejecutarlo siempre, Ansible reportará si hubo cambios.
-  changed_when: true
+  changed_when: false
   when: ansible_selinux.status != "disabled"
+
+- name: Instalar librerías necesarias para manipular SELinux en RedHat
+  ansible.builtin.package:
+    name:
+      - python3-libselinux
+      - python3-libsemanage
+    state: present
+  when: ansible_os_family == 'RedHat'
 
 # Para redhat se debe habilitar httpd para conectarse a la base de datos
 - name: Allow Apache (httpd) to connect to database via network (SELinux boolean)
@@ -252,4 +291,6 @@
   when:
     - ansible_os_family == 'RedHat'
     - webserver_type == 'apache'
-  notify: "restart webserver" 
+    - ansible_selinux.status == 'enabled'
+  notify: "restart webserver"
+

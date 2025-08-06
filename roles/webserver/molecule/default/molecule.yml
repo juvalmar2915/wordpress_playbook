@@ -1,32 +1,20 @@
 ---
 dependency:
   name: galaxy
+
 driver:
-  name: vagrant
-  provider:
-    name: virtualbox
+  name: docker
+
 platforms:
-  - name: instance-ubuntu
-    box: ubuntu/focal64
-    networks:
-      - forwarded_port:
-          guest: 80
-          host: 8080
-    memory: 1024
-  - name: instance-rocky
-    box: rockylinux/9
-    interfaces:
-      - auto_config: true
-        network_name: private_network
-        ip: 192.168.56.11
-    networks:
-      - forwarded_port:
-          guest: 80
-          host: 8090
-    memory: 1024
+  - name: molecule-ubuntu
+    image: ubuntu:20.04
+  - name: molecule-rocky
+    image: rockylinux:9
+
 provisioner:
   name: ansible
   playbooks:
+    prepare: prepare.yml
     converge: converge.yml
   config_options:
     defaults:
@@ -41,5 +29,7 @@ provisioner:
         wordpress_site_url: http://127.0.0.1
         wordpress_version: "6.5"
         wordpress_download_url: "https://wordpress.org/wordpress-{{ wordpress_version }}.zip"
+
 verifier:
   name: ansible
+

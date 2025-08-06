@@ -18,4 +18,3 @@
       ansible.builtin.file:
         path: "{{ molecule_instance_config }}"
         state: absent
-

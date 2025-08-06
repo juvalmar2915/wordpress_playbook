@@ -77,19 +77,19 @@ Vagrant.configure("2") do |config|
     end
   end
 
-  config.vm.define "instance-rocky" do |instance_rocky|
+  #config.vm.define "instance-rocky" do |instance_rocky|
     #instance_centos.vm.box = "centos/8" centos dejo de ser mantenida
-    instance_rocky.vm.box="rockylinux/9"
-    instance_rocky.vm.network "private_network", ip: "192.168.56.10"
-    instance_rocky.vm.synced_folder ".", "/vagrant",
-    type: "nfs",
-    nfs_version: 4,
-    mount_options: ['tcp', 'nolock']
-    instance_rocky.vm.network "forwarded_port", guest: 80, host: 8090
-    instance_rocky.vm.provision "ansible" do |ansible|
-      ansible.playbook = "wordpress.yml"
-    end
-  end
+  #  instance_rocky.vm.box="rockylinux/9"
+  #  instance_rocky.vm.network "private_network", ip: "192.168.56.10"
+  #  instance_rocky.vm.synced_folder ".", "/vagrant",
+  #  type: "nfs",
+  #  nfs_version: 4,
+  #  mount_options: ['tcp', 'nolock']
+  #  instance_rocky.vm.network "forwarded_port", guest: 80, host: 8090
+  #  instance_rocky.vm.provision "ansible" do |ansible|
+  #    ansible.playbook = "wordpress.yml"
+  #  end
+  #end
   # Enable provisioning with a shell script. Additional provisioners such as
   # Ansible, Chef, Docker, Puppet and Salt are also available. Please see the
   # documentation for more information about their specific syntax and use.
